@@ -134,27 +134,27 @@ def idle():
     """Update game and redraw."""
     update_game()
     glutPostRedisplay()
-
+    
 def main():
-    try:
-        glutInit()
-        glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH)
-        glutInitWindowSize(1000, 800)
-        glutInitWindowPosition(0, 0)
-        glutCreateWindow(b"3D Pacman HUD & Special Abilities")
-        
-        glEnable(GL_DEPTH_TEST)
-        glClearColor(0.0, 0.0, 0.0, 1.0)
-        glDisable(GL_LIGHTING)
-        
-        glutDisplayFunc(showScreen)
-        glutKeyboardFunc(keyboardListener)
-        glutIdleFunc(idle)
-        
-        init_game()
-        
-        glutMainLoop()
-
+    glutInit()
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH)
+    glutInitWindowSize(1000, 800)
+    glutInitWindowPosition(0, 0)
+    glutCreateWindow(b"3D Pacman")
+    
+    glEnable(GL_DEPTH_TEST)
+    glClearColor(0.0, 0.0, 0.0, 1.0)
+    glDisable(GL_LIGHTING)
+    
+    glutDisplayFunc(showScreen)
+    glutKeyboardFunc(keyboardListener)
+    glutSpecialFunc(specialKeyListener)
+    glutMouseFunc(mouseListener)
+    glutIdleFunc(idle)
+    
+    init_game()
+    
+    glutMainLoop()
 
 if __name__ == "__main__":
     main()
