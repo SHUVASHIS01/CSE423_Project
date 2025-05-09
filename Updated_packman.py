@@ -1,143 +1,165 @@
 from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
-import math
-import random
 import time
+import sys
 
 # Game state variables
-player_pos = [50, 50, 20]  # Player position (x, y, z) in maze
-player_angle = 0
 life = 5
 score = 0
+bullets_missed = 0
 game_over = False
+paused = False
+camera_mode = 'third'  # Options: 'third', 'top', 'first' (for HUD display)
+special_ability_active = False
+special_ability_timer = 0
+auto_shoot_active = False
+auto_shoot_timer = 0
+speed_boost_cooldown = 0  # Cooldown timer for speed boost
+auto_shoot_cooldown = 0   # Cooldown timer for auto-shoot
+last_time = time.time()
+COOLDOWN_DURATION = 10  # 10-second cooldown for abilities
 
-# Maze and game constants
-MAZE_SIZE = 600
-WALL_HEIGHT_OUTER = 60
-WALL_HEIGHT_INNER = 40
-fovY = 90
-BULLET_SPEED = 3
+def init_game():
+    """Initialize or reset game state."""
+    global life, score, bullets_missed, game_over, paused, camera_mode, special_ability_active, special_ability_timer, auto_shoot_active, auto_shoot_timer, speed_boost_cooldown, auto_shoot_cooldown
+    life = 5
+    score = 0
+    bullets_missed = 0
+    game_over = False
+    paused = False
+    camera_mode = 'third'
+    special_ability_active = False
+    special_ability_timer = 0
+    auto_shoot_active = False
+    auto_shoot_timer = 0
+    speed_boost_cooldown = 0
+    auto_shoot_cooldown = 0
 
-# Maze layout: [x1, y1, x2, y2, height]
-maze_walls = [
-    # Outer walls
-    [-300, -300, 300, -300, WALL_HEIGHT_OUTER],  # Bottom
-    [-300, 300, 300, 300, WALL_HEIGHT_OUTER],    # Top
-    [-300, -300, -300, 300, WALL_HEIGHT_OUTER],  # Left
-    [300, -300, 300, 300, WALL_HEIGHT_OUTER],    # Right
-    # Inner walls (cross shape)
-    [-150, 0, 150, 0, WALL_HEIGHT_INNER],        # Horizontal
-    [0, -150, 0, 150, WALL_HEIGHT_INNER],        # Vertical
-]
-
-def is_valid_position(x, y, radius):
-    """Check if position is valid (no collision with walls)."""
-    for wall in maze_walls:
-        x1, y1, x2, y2, _ = wall
-        if x1 == x2:  # Vertical wall
-            if abs(x - x1) < radius and min(y1, y2) - radius < y < max(y1, y2) + radius:
-                return False
-        elif y1 == y2:  # Horizontal wall
-            if abs(y - y1) < radius and min(x1, x2) - radius < x < max(x1, x2) + radius:
-                return False
-    return True
-
-def draw_maze():
-    """Draw the maze walls with brick-like segments."""
-    glBegin(GL_QUADS)
-    for wall in maze_walls:
-        x1, y1, x2, y2, height = wall
-        segment_size = 20  # Size of brick segments
-        if x1 == x2:  # Vertical wall
-            for y in range(int(min(y1, y2)), int(max(y1, y2)), segment_size):
-                # Alternate colors for brick effect
-                glColor3f(0, 0.8, 0) if (y // segment_size) % 2 == 0 else glColor3f(0.5, 1, 0.5)
-                glVertex3f(x1 - 10, y, 0)
-                glVertex3f(x1 + 10, y, 0)
-                glVertex3f(x1 + 10, y, height)
-                glVertex3f(x1 - 10, y, height)
-        elif y1 == y2:  # Horizontal wall
-            for x in range(int(min(x1, x2)), int(max(x1, x2)), segment_size):
-                glColor3f(0, 0.8, 0) if (x // segment_size) % 2 == 0 else glColor3f(0.5, 1, 0.5)
-                glVertex3f(x, y1 - 10, 0)
-                glVertex3f(x, y1 + 10, 0)
-                glVertex3f(x, y1 + 10, height)
-                glVertex3f(x, y1 - 10, height)
-    glEnd()
-
-def draw_player():
-    """Draw Pacman with animated mouth."""
+def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
+    glColor3f(0.7, 0.7, 1)  # Light blue
+    glMatrixMode(GL_PROJECTION)
     glPushMatrix()
-    glTranslatef(player_pos[0], player_pos[1], player_pos[2])
-    glRotatef(player_angle, 0, 0, 1)
-    
-    glColor3f(1, 1, 0)  # Yellow
-    mouth_angle = 45 + 15 * math.sin(time.time() * 5)
-    quad = gluNewQuadric()
-    gluPartialDisk(quad, 0, 20, 20, 20, mouth_angle / 2, 360 - mouth_angle)
+    glLoadIdentity()
+    gluOrtho2D(0, 1000, 0, 800)
+    glMatrixMode(GL_MODELVIEW)
+    glPushMatrix()
+    glLoadIdentity()
+    glRasterPos2f(x, y)
+    for ch in text:
+        glutBitmapCharacter(font, ord(ch))
     glPopMatrix()
+    glMatrixMode(GL_PROJECTION)
+    glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
 
 def keyboardListener(key, x, y):
-    """Handle keyboard inputs for Pac-Man movement."""
-    global player_pos, player_angle
+    """Handle keyboard inputs for pause, game over, and special abilities."""
+    global paused, special_ability_active, special_ability_timer, auto_shoot_active, auto_shoot_timer
     if game_over:
         if key == b'r':
-            init_game()
+            init_game()  # Restart game
         return
     
-    speed = 5
-    if key == b'w':  # Move forward
-        rad = math.radians(player_angle)
-        new_x = player_pos[0] + speed * math.sin(rad)
-        new_y = player_pos[1] + speed * math.cos(rad)
-        if is_valid_position(new_x, new_y, 20):
-            player_pos[0] = new_x
-            player_pos[1] = new_y
-    if key == b's':  # Move backward
-        rad = math.radians(player_angle)
-        new_x = player_pos[0] - speed * math.sin(rad)
-        new_y = player_pos[1] - speed * math.cos(rad)
-        if is_valid_position(new_x, new_y, 20):
-            player_pos[0] = new_x
-            player_pos[1] = new_y
-    if key == b'a':  # Turn left
-        player_angle = (player_angle + 5) % 360
-    if key == b'd':  # Turn right
-        player_angle = (player_angle - 5) % 360
+    if key == b'p':
+        paused = not paused  # Toggle pause
+        return
+    
+    if paused:
+        return
+    
+    if key == b' ' and not special_ability_active and time.time() >= speed_boost_cooldown:
+        special_ability_active = True
+        special_ability_timer = time.time()  # Start speed boost
+    if key == b'c' and not auto_shoot_active and time.time() >= auto_shoot_cooldown:
+        auto_shoot_active = True
+        auto_shoot_timer = time.time()  # Start auto-shoot
 
-def setupCamera():
-    """Configure camera projection and view."""
+def update_game():
+    """Update special ability timers and cooldowns."""
+    global special_ability_active, special_ability_timer, auto_shoot_active, auto_shoot_timer, speed_boost_cooldown, auto_shoot_cooldown, last_time
+    if game_over or paused:
+        return
+    
+    current_time = time.time()
+    last_time = current_time
+    
+    if auto_shoot_active:
+        if current_time - auto_shoot_timer > 5:  # Auto-shoot lasts 5 seconds
+            auto_shoot_active = False
+            auto_shoot_cooldown = current_time + COOLDOWN_DURATION  # Start cooldown
+    
+    if special_ability_active and current_time - special_ability_timer > 5:  # Speed boost lasts 5 seconds
+        special_ability_active = False
+        speed_boost_cooldown = current_time + COOLDOWN_DURATION  # Start cooldown
+
+def showScreen():
+    """Render the HUD with lives, score, bullets missed, camera mode, and states."""
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    glLoadIdentity()
+    glViewport(0, 0, 1000, 800)
+    
+    # Set up 2D projection for text
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
-    gluPerspective(fovY, 1.25, 0.1, 1500)
+    gluOrtho2D(0, 1000, 0, 800)
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
     
-    rad = math.radians(player_angle)
-    cx = player_pos[0] + 200 * math.sin(rad)
-    cy = player_pos[1] + 200 * math.cos(rad)
-    cz = 300
-    gluLookAt(cx, cy, cz, player_pos[0], player_pos[1], player_pos[2], 0, 0, 1)
+    # Display stats and cooldowns in top-left corner
+    draw_text(10, 770, f"Lives: {life}")
+    draw_text(10, 740, f"Score: {score}")
+    draw_text(10, 710, f"Bullets Missed: {bullets_missed}")
+    draw_text(10, 680, f"Camera: {'Top-Down' if camera_mode == 'top' else 'Third-Person' if camera_mode == 'third' else 'First-Person'}")
+    if time.time() < speed_boost_cooldown:
+        remaining = int(speed_boost_cooldown - time.time())
+        draw_text(10, 650, f"Speed Boost Cooldown: {remaining}s")
+    if time.time() < auto_shoot_cooldown:
+        remaining = int(auto_shoot_cooldown - time.time())
+        draw_text(10, 620, f"Auto-Shoot Cooldown: {remaining}s")
+    
+    # Display active ability timers and states (center of screen)
+    if paused:
+        draw_text(400, 400, "Paused - Press P to Resume")
+    if game_over:
+        draw_text(400, 400, "Game Over! Press R to Restart")
+    if special_ability_active:
+        draw_text(400, 370, f"Speed Boost: {5 - int(time.time() - special_ability_timer)}s")
+    if auto_shoot_active:
+        draw_text(400, 340, f"Auto-Shoot: {5 - int(time.time() - auto_shoot_timer)}s")
+    
+    glutSwapBuffers()
+
+def idle():
+    """Update game and redraw."""
+    update_game()
+    glutPostRedisplay()
 
 def main():
-    glutInit()
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH)
-    glutInitWindowSize(1000, 800)
-    glutInitWindowPosition(0, 0)
-    glutCreateWindow(b"3D Pacman")
-    
-    glEnable(GL_DEPTH_TEST)
-    glClearColor(0.0, 0.0, 0.0, 1.0)
-    glDisable(GL_LIGHTING)
-    
-    glutDisplayFunc(showScreen)
-    glutKeyboardFunc(keyboardListener)
-    glutIdleFunc(idle)
-    
-    init_game()
-    
-    glutMainLoop()
+    try:
+        glutInit()
+        glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH)
+        glutInitWindowSize(1000, 800)
+        glutInitWindowPosition(0, 0)
+        glutCreateWindow(b"3D Pacman HUD & Special Abilities")
+        
+        glEnable(GL_DEPTH_TEST)
+        glClearColor(0.0, 0.0, 0.0, 1.0)
+        glDisable(GL_LIGHTING)
+        
+        glutDisplayFunc(showScreen)
+        glutKeyboardFunc(keyboardListener)
+        glutIdleFunc(idle)
+        
+        init_game()
+        
+        glutMainLoop()
+    except Exception as e:
+        print(f"Error initializing GLUT/OpenGL: {e}")
+        print("Ensure PyOpenGL and FreeGLUT are installed.")
+        print("Install PyOpenGL: pip install PyOpenGL PyOpenGL_accelerate")
+        print("Install FreeGLUT (Windows: bundled; macOS: brew install freeglut; Linux: sudo apt-get install freeglut3-dev)")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
