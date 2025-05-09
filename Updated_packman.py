@@ -154,12 +154,7 @@ def main():
         init_game()
         
         glutMainLoop()
-    except Exception as e:
-        print(f"Error initializing GLUT/OpenGL: {e}")
-        print("Ensure PyOpenGL and FreeGLUT are installed.")
-        print("Install PyOpenGL: pip install PyOpenGL PyOpenGL_accelerate")
-        print("Install FreeGLUT (Windows: bundled; macOS: brew install freeglut; Linux: sudo apt-get install freeglut3-dev)")
-        sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
