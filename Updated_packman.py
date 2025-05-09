@@ -148,8 +148,6 @@ def main():
     
     glutDisplayFunc(showScreen)
     glutKeyboardFunc(keyboardListener)
-    glutSpecialFunc(specialKeyListener)
-    glutMouseFunc(mouseListener)
     glutIdleFunc(idle)
     
     init_game()
