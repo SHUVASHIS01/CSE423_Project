@@ -30,7 +30,39 @@ maze_walls = [
     [-150, 0, 150, 0, WALL_HEIGHT_INNER],        # Horizontal
     [0, -150, 0, 150, WALL_HEIGHT_INNER],        # Vertical
 ]
-
+def init_game():
+    """Initialize or reset game state."""
+    global player_pos, player_angle, life, score, bullets_missed, game_over, bullets, enemies, powerups, camera_mode, camera_height, camera_angle, paused, obstacles, destroyed_paths, last_obstacle_spawn, special_ability_active, special_ability_timer
+    player_pos = [50, 50, 20]
+    player_angle = 0
+    life = 5
+    score = 0
+    bullets_missed = 0
+    game_over = False
+    paused = False
+    camera_mode = 'third'
+    camera_height = 300
+    camera_angle = 0
+    special_ability_active = False
+    special_ability_timer = 0
+    bullets = []
+    enemies = []
+    powerups = []
+    obstacles = []
+    destroyed_paths = []
+    last_obstacle_spawn = time.time()
+    for _ in range(ENEMY_COUNT):
+        spawn_enemy()
+    for _ in range(POWERUP_COUNT):
+        spawn_powerup()
+def spawn_enemy():
+    """Spawn an enemy at a random valid position."""
+    while True:
+        x = random.uniform(-290, 290)
+        y = random.uniform(-290, 290)
+        if is_valid_position(x, y, 20) and math.hypot(x - player_pos[0], y - player_pos[1]) > 100:
+            enemies.append([x, y, 20])
+            break
 def is_valid_position(x, y, radius):
     """Check if position is valid (no collision with walls)."""
     for wall in maze_walls:
@@ -76,6 +108,22 @@ def draw_player():
     mouth_angle = 45 + 15 * math.sin(time.time() * 5)
     quad = gluNewQuadric()
     gluPartialDisk(quad, 0, 20, 20, 20, mouth_angle / 2, 360 - mouth_angle)
+    glPopMatrix()
+def draw_enemy(x, y, z):
+    """Draw an enemy as a purple sphere."""
+    glPushMatrix()
+    glTranslatef(x, y, z)
+    glColor3f(0.5, 0, 0.5)  # Purple
+    gluSphere(gluNewQuadric(), 15, 10, 10)
+    glPopMatrix()
+def draw_powerup(x, y, z):
+    """Draw a power-up as a cyan cube."""
+    glPushMatrix()
+    glTranslatef(x, y, z)
+    glColor3f(0, 1, 1)  # Cyan
+    scale = 1.0 + 0.2 * math.sin(time.time() * 5)
+    glScalef(scale, scale, scale)
+    glutSolidCube(10)
     glPopMatrix()
 
 def keyboardListener(key, x, y):
